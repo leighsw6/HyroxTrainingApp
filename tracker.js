@@ -202,7 +202,18 @@ async function renderWeek() {
   const root = document.getElementById("week-tracker");
   if (!root) return;
 
-  await loadDisplayedWeek();
+  try {
+    await loadDisplayedWeek();
+  } catch (e) {
+    console.error("[Hyrox] Could not load week data; showing blank week.", e);
+    window.hyroxIdbReadFailed = true;
+    const wk = displayedWeekMonday();
+    const days = {};
+    for (const k of iterWeekDayKeys(wk)) {
+      days[k] = defaultDay();
+    }
+    weekCache = { weekKey: wk, days };
+  }
   const wk = weekCache.weekKey;
   const dayKeys = iterWeekDayKeys(wk);
   const inner = dayKeys
@@ -225,6 +236,11 @@ async function renderWeek() {
   renderProgressBars(weeklyNum);
   await refreshCampaignBar();
   updateWeekNavButtons();
+
+  const storageWarn = document.getElementById("storage-warning");
+  if (storageWarn) {
+    storageWarn.classList.toggle("hidden", !window.hyroxIdbReadFailed);
+  }
 }
 
 async function onRingChange(e) {
@@ -329,17 +345,24 @@ function bindWeekRoot() {
 function bindNav() {
   document.getElementById("week-prev")?.addEventListener("click", () => {
     viewOffset--;
-    renderWeek();
+    renderWeek().catch((err) => console.error("[Hyrox] renderWeek", err));
   });
   document.getElementById("week-next")?.addEventListener("click", () => {
     viewOffset++;
-    renderWeek();
+    renderWeek().catch((err) => console.error("[Hyrox] renderWeek", err));
   });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  window.hyroxIdbReadFailed = false;
   ensureTrackingStartWeek();
   bindWeekRoot();
   bindNav();
-  renderWeek();
+  renderWeek().catch((err) => console.error("[Hyrox] renderWeek", err));
+  window.addEventListener("hyrox-synced", () => {
+    renderWeek().catch((err) => console.error("[Hyrox] renderWeek", err));
+  });
+  window.addEventListener("hyrox-auth-changed", () => {
+    renderWeek().catch((err) => console.error("[Hyrox] renderWeek", err));
+  });
 });

@@ -6,7 +6,6 @@ const HYROX_EVENT = new Date("2026-07-03T07:00:00+10:00");
 
 let chartDistance = null;
 let chartTime = null;
-let chartPace = null;
 let timelineOpen = false;
 
 /** Matches tracker.js cardio subtype values. */
@@ -17,8 +16,19 @@ const CARDIO_SUBTYPES = [
   { value: "rower", label: "Rower" },
 ];
 
-/** @type {Record<string, Array<{weekKey: string, distanceKm: number, timeMin: number, paceMinPerKm: number|null}>>|null} */
 let cachedCardioBySubtype = null;
+
+/** Weekly rollups per cardio subtype (distance/time from log; derived fields when possible). */
+function emptyWeeklyRow(wk) {
+  return {
+    weekKey: wk,
+    distanceKm: 0,
+    timeMin: 0,
+    paceMinPerKm: null,
+    avgSpeedKmh: null,
+    pace500Min: null,
+  };
+}
 
 function parseDistanceKm(s) {
   if (s == null || !String(s).trim()) return 0;
@@ -72,7 +82,9 @@ function firstSubtypeWithData(bySubtype) {
         (row) =>
           row.distanceKm > 0 ||
           row.timeMin > 0 ||
-          (row.paceMinPerKm != null && row.paceMinPerKm > 0)
+          (row.paceMinPerKm != null && row.paceMinPerKm > 0) ||
+          (row.avgSpeedKmh != null && row.avgSpeedKmh > 0) ||
+          (row.pace500Min != null && row.pace500Min > 0)
       )
     ) {
       return st.value;
@@ -89,15 +101,9 @@ async function aggregateCardioBySubtypeAndWeek() {
   const start = ensureTrackingStartWeek();
   const end = raceWeekMondayIso();
   const weekKeys = weekKeysBetweenInclusive(start, end);
-  /** @type {Record<string, Array<{weekKey: string, distanceKm: number, timeMin: number, paceMinPerKm: number|null}>>} */
   const bySubtype = {};
   for (const st of CARDIO_SUBTYPES) {
-    bySubtype[st.value] = weekKeys.map((wk) => ({
-      weekKey: wk,
-      distanceKm: 0,
-      timeMin: 0,
-      paceMinPerKm: null,
-    }));
+    bySubtype[st.value] = weekKeys.map((wk) => emptyWeeklyRow(wk));
   }
   for (let i = 0; i < weekKeys.length; i++) {
     const wk = weekKeys[i];
@@ -123,6 +129,11 @@ async function aggregateCardioBySubtypeAndWeek() {
         row.timeMin = p.timeSec / 60;
         row.paceMinPerKm =
           p.distanceKm > 0.01 && p.timeSec > 0 ? p.timeSec / 60 / p.distanceKm : null;
+        row.avgSpeedKmh =
+          p.distanceKm > 0.01 && p.timeSec > 0 ? p.distanceKm / (p.timeSec / 3600) : null;
+        const dm = p.distanceKm * 1000;
+        row.pace500Min =
+          dm > 1 && p.timeSec > 0 ? ((p.timeSec / dm) * 500) / 60 : null;
       }
     }
   }
@@ -130,12 +141,12 @@ async function aggregateCardioBySubtypeAndWeek() {
 }
 
 function destroyCharts() {
-  [chartDistance, chartTime, chartPace].forEach((c) => {
+  [chartDistance, chartTime].forEach((c) => {
     if (c) {
       c.destroy();
     }
   });
-  chartDistance = chartTime = chartPace = null;
+  chartDistance = chartTime = null;
 }
 
 function chartDefaults() {
@@ -161,36 +172,97 @@ function chartDefaults() {
   };
 }
 
-function renderCharts(series) {
+function chartHintForSubtype(st) {
+  const base = "Metrics use weekly totals from completed sessions of this type. ";
+  if (st === "treadmill" || st === "outdoor") {
+    return (
+      base +
+      "Speed = km ÷ hours; pace = min/km (from your distance and time fields)."
+    );
+  }
+  if (st === "ski-erg") {
+    return (
+      base +
+      "Time = sum of logged duration. Pace /500m uses distance as km (Concept2-style: time for 500m as decimal minutes)."
+    );
+  }
+  if (st === "rower") {
+    return (
+      base +
+      "Distance = sum of logged km. Split /500m is derived from total time and distance for the week."
+    );
+  }
+  return base;
+}
+
+function renderCharts(series, subtypeOverride) {
   if (!timelineOpen) return;
   destroyCharts();
+  const st =
+    subtypeOverride ||
+    document.getElementById("cardio-type-select")?.value ||
+    "treadmill";
+
+  const hintEl = document.getElementById("charts-hint");
+  if (hintEl) hintEl.textContent = chartHintForSubtype(st);
+
   const labels = series.map((s) => chartWeekLabel(s.weekKey));
-  const distData = series.map((s) => Math.round(s.distanceKm * 100) / 100);
-  const timeData = series.map((s) => Math.round(s.timeMin * 10) / 10);
-  const paceData = series.map((s) =>
-    s.paceMinPerKm != null ? Math.round(s.paceMinPerKm * 100) / 100 : null
-  );
+  const round2 = (x) => (x != null ? Math.round(x * 100) / 100 : null);
+  const round1 = (x) => (x != null ? Math.round(x * 10) / 10 : null);
+
+  let data1;
+  let data2;
+  let label1 = "";
+  let label2 = "";
+  let chart1Type = "line";
+  let chart2Type = "line";
+
+  if (st === "treadmill" || st === "outdoor") {
+    data1 = series.map((s) => round2(s.avgSpeedKmh));
+    data2 = series.map((s) => round2(s.paceMinPerKm));
+    label1 = "Average speed (km/h)";
+    label2 = "Average pace (min/km)";
+    chart1Type = "line";
+    chart2Type = "line";
+  } else if (st === "ski-erg") {
+    data1 = series.map((s) => round1(s.timeMin));
+    data2 = series.map((s) => round2(s.pace500Min));
+    label1 = "Total time (minutes)";
+    label2 = "Average pace /500m (min)";
+    chart1Type = "bar";
+    chart2Type = "line";
+  } else if (st === "rower") {
+    data1 = series.map((s) => round2(s.distanceKm));
+    data2 = series.map((s) => round2(s.pace500Min));
+    label1 = "Weekly distance (km)";
+    label2 = "Average split /500m (min)";
+    chart1Type = "line";
+    chart2Type = "line";
+  } else {
+    data1 = [];
+    data2 = [];
+  }
 
   const hasData =
-    distData.some((v) => v > 0) ||
-    timeData.some((v) => v > 0) ||
-    paceData.some((v) => v != null && v > 0);
+    data1.some((v) => v != null && v > 0) || data2.some((v) => v != null && v > 0);
 
   const emptyEl = document.getElementById("timeline-charts-empty");
-  const section = document.querySelector(".timeline-charts");
-  if (emptyEl && section) {
+  const w1 = document.getElementById("chart-wrap-1");
+  const w2 = document.getElementById("chart-wrap-2");
+  if (emptyEl) {
     if (!hasData) {
       emptyEl.classList.remove("hidden");
-      section.querySelectorAll(".chart-wrap").forEach((w) => {
-        w.classList.add("hidden");
-      });
+      [w1, w2].forEach((w) => w && w.classList.add("hidden"));
       return;
     }
     emptyEl.classList.add("hidden");
-    section.querySelectorAll(".chart-wrap").forEach((w) => {
-      w.classList.remove("hidden");
-    });
   }
+  [w1, w2].forEach((w) => w && w.classList.remove("hidden"));
+
+  const el1 = document.getElementById("chart-label-1");
+  const el2 = document.getElementById("chart-label-2");
+  if (el1) el1.textContent = label1;
+  if (el2) el2.textContent = label2;
 
   const orange = "#ff6b35";
   const blue = "#3d8bfd";
@@ -198,62 +270,53 @@ function renderCharts(series) {
 
   const cd = document.getElementById("chart-distance");
   const ct = document.getElementById("chart-time");
-  const cp = document.getElementById("chart-pace");
-  if (!cd || !ct || !cp || typeof Chart === "undefined") return;
+  if (!cd || !ct || typeof Chart === "undefined") return;
+
+  const optsLine = chartDefaults();
+  const optsBar = chartDefaults();
 
   chartDistance = new Chart(cd, {
-    type: "line",
+    type: chart1Type,
     data: {
       labels,
       datasets: [
         {
-          label: "km",
-          data: distData,
-          borderColor: orange,
-          backgroundColor: "rgba(255, 107, 53, 0.12)",
-          fill: true,
-          tension: 0.25,
+          label: label1,
+          data: data1,
+          borderColor: chart1Type === "bar" ? blue : orange,
+          backgroundColor:
+            chart1Type === "bar" ? "rgba(61, 139, 253, 0.45)" : "rgba(255, 107, 53, 0.12)",
+          fill: chart1Type === "line",
+          tension: chart1Type === "line" ? 0.25 : 0,
           spanGaps: true,
+          borderWidth: chart1Type === "bar" ? 1 : 2,
         },
       ],
     },
-    options: chartDefaults(),
+    options: chart1Type === "bar" ? optsBar : optsLine,
   });
 
   chartTime = new Chart(ct, {
-    type: "bar",
+    type: chart2Type,
     data: {
       labels,
       datasets: [
         {
-          label: "min",
-          data: timeData,
-          backgroundColor: "rgba(61, 139, 253, 0.45)",
-          borderColor: blue,
-          borderWidth: 1,
-        },
-      ],
-    },
-    options: chartDefaults(),
-  });
-
-  chartPace = new Chart(cp, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "min/km",
-          data: paceData,
-          borderColor: cyan,
-          backgroundColor: "rgba(125, 211, 252, 0.1)",
-          fill: true,
-          tension: 0.25,
+          label: label2,
+          data: data2,
+          borderColor: st === "ski-erg" || st === "rower" ? cyan : blue,
+          backgroundColor:
+            chart2Type === "bar"
+              ? "rgba(125, 211, 252, 0.35)"
+              : "rgba(61, 139, 253, 0.1)",
+          fill: chart2Type === "line",
+          tension: chart2Type === "line" ? 0.25 : 0,
           spanGaps: true,
+          borderWidth: chart2Type === "bar" ? 1 : 2,
         },
       ],
     },
-    options: chartDefaults(),
+    options: chart2Type === "bar" ? optsBar : optsLine,
   });
 }
 
@@ -339,7 +402,7 @@ function openTimeline() {
       );
     const subtype = hasPreferred ? preferred : firstSubtypeWithData(bySubtype);
     if (select) select.value = subtype;
-    renderCharts(bySubtype[subtype] || []);
+    renderCharts(bySubtype[subtype] || [], subtype);
   });
 
   modal.hidden = false;
@@ -377,6 +440,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const t = e.target;
     if (!(t instanceof HTMLSelectElement) || !cachedCardioBySubtype) return;
     const series = cachedCardioBySubtype[t.value];
-    renderCharts(series || []);
+    renderCharts(series || [], t.value);
   });
 });

@@ -179,6 +179,59 @@ body {
   margin-inline: auto;
 }
 
+.foot__sync-hint {
+  margin-top: 0.75rem !important;
+  max-width: 28rem !important;
+}
+
+.foot__sync-hint--warn code {
+  font-size: 0.68em;
+  word-break: break-all;
+}
+
+.foot__sync-hint--warn {
+  color: #e8b4a0;
+}
+
+.auth-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.btn-auth {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.btn-auth:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.btn-auth--ghost {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--muted);
+}
+
+.auth-status {
+  font-size: 0.72rem;
+  color: var(--muted);
+  max-width: 14rem;
+  text-align: center;
+}
+
 abbr {
   text-decoration: underline dotted;
   cursor: help;

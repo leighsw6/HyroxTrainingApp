@@ -60,7 +60,7 @@ function iterWeekDayKeys(weekKey) {
   return keys;
 }
 
-async function getWeek(weekKey) {
+async function idbGetWeek(weekKey) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("weeks", "readonly");
@@ -71,7 +71,7 @@ async function getWeek(weekKey) {
   });
 }
 
-async function putWeek(record) {
+async function idbPutWeek(record) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("weeks", "readwrite");
@@ -82,27 +82,86 @@ async function putWeek(record) {
   });
 }
 
-async function getWeekOrDefault(weekKey) {
-  const existing = await getWeek(weekKey);
-  const days = {};
-  for (const k of iterWeekDayKeys(weekKey)) {
-    const d = existing?.days?.[k];
-    if (d) {
-      const r = d.rings || defaultDay().rings;
-      days[k] = {
-        rings: [!!r[0], !!r[1], !!r[2]],
-        workoutType: d.workoutType || "",
-        workoutDone: !!d.workoutDone,
-        cardioSubtype: d.cardioSubtype || "",
-        cardioDistance: d.cardioDistance ?? "",
-        cardioTime: d.cardioTime ?? "",
-        cardioPace: d.cardioPace ?? "",
-      };
-    } else {
-      days[k] = defaultDay();
+/** All stored weeks (for cloud merge). */
+async function idbGetAllWeeks() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("weeks", "readonly");
+    const store = tx.objectStore("weeks");
+    const r = store.getAll();
+    r.onerror = () => reject(r.error);
+    r.onsuccess = () => resolve(r.result || []);
+  });
+}
+
+async function getWeek(weekKey) {
+  let local = null;
+  try {
+    local = await idbGetWeek(weekKey);
+  } catch (e) {
+    console.warn(
+      "[Hyrox] IndexedDB read failed (common in file:// or locked previews). Use http://localhost or your live site.",
+      e
+    );
+    window.hyroxIdbReadFailed = true;
+  }
+  if (typeof hyroxApplyCloudToWeek === "function") {
+    try {
+      return await hyroxApplyCloudToWeek(weekKey, local);
+    } catch (e) {
+      console.warn("[Hyrox] Cloud merge failed; using local data only.", e);
+      return local;
     }
   }
-  return { weekKey, days };
+  return local;
+}
+
+async function putWeek(record) {
+  try {
+    await idbPutWeek(record);
+  } catch (e) {
+    console.warn("[Hyrox] IndexedDB write failed; changes may not persist here.", e);
+    window.hyroxIdbReadFailed = true;
+  }
+  if (typeof hyroxPushWeekToCloud === "function") {
+    try {
+      await hyroxPushWeekToCloud(record);
+    } catch (e) {
+      console.warn("Hyrox cloud sync failed (will retry on next save)", e);
+    }
+  }
+}
+
+async function getWeekOrDefault(weekKey) {
+  try {
+    const existing = await getWeek(weekKey);
+    const days = {};
+    for (const k of iterWeekDayKeys(weekKey)) {
+      const d = existing?.days?.[k];
+      if (d) {
+        const r = d.rings || defaultDay().rings;
+        days[k] = {
+          rings: [!!r[0], !!r[1], !!r[2]],
+          workoutType: d.workoutType || "",
+          workoutDone: !!d.workoutDone,
+          cardioSubtype: d.cardioSubtype || "",
+          cardioDistance: d.cardioDistance ?? "",
+          cardioTime: d.cardioTime ?? "",
+          cardioPace: d.cardioPace ?? "",
+        };
+      } else {
+        days[k] = defaultDay();
+      }
+    }
+    return { weekKey, days };
+  } catch (e) {
+    console.warn("[Hyrox] getWeekOrDefault failed; showing empty week.", e);
+    const days = {};
+    for (const k of iterWeekDayKeys(weekKey)) {
+      days[k] = defaultDay();
+    }
+    return { weekKey, days };
+  }
 }
 
 function weekCompletionCount(week) {
