@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Hyrox Sydney countdown and training tracker" />
+    <title>Hyrox Sydney — Training</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <main class="shell">
+      <header class="hero">
+        <div class="hero__bar">
+          <p class="eyebrow">Hyrox · Australia</p>
+          <button type="button" class="btn-timeline" id="btn-timeline" aria-haspopup="dialog" aria-controls="timeline-modal">
+            Timeline
+          </button>
+        </div>
+        <h1 class="title">Sydney</h1>
+        <p class="meta">
+          <time datetime="2026-07-03">Friday 3 July 2026</time>
+          <span class="dot" aria-hidden="true">·</span>
+          <span>Morning start (7:00 AM AEST)</span>
+        </p>
+      </header>
+
+      <section class="countdown" aria-live="polite" aria-atomic="true">
+        <div class="panel" id="state-before">
+          <div class="units">
+            <div class="unit">
+              <span class="value" id="d">—</span>
+              <span class="label">Days</span>
+            </div>
+            <div class="unit">
+              <span class="value" id="h">—</span>
+              <span class="label">Hours</span>
+            </div>
+            <div class="unit">
+              <span class="value" id="m">—</span>
+              <span class="label">Minutes</span>
+            </div>
+            <div class="unit">
+              <span class="value" id="s">—</span>
+              <span class="label">Seconds</span>
+            </div>
+          </div>
+          <p class="local-hint" id="local-equiv"></p>
+        </div>
+
+        <div class="panel panel--solo hidden" id="state-during">
+          <p class="solo-title">It’s race morning</p>
+          <p class="solo-sub">Hyrox Sydney — go get it.</p>
+        </div>
+
+        <div class="panel panel--solo hidden" id="state-after">
+          <p class="solo-title">Race day has passed</p>
+          <p class="solo-sub">Reset the target in code or extend the app to your next event.</p>
+        </div>
+      </section>
+
+      <section class="tracker-section" aria-labelledby="tracker-heading">
+        <h2 id="tracker-heading" class="section-title">Training week</h2>
+        <div class="week-toolbar">
+          <button type="button" class="btn-week" id="week-prev" aria-label="Previous week">←</button>
+          <p class="week-range" id="week-range-label">—</p>
+          <button type="button" class="btn-week" id="week-next" aria-label="Next week">→</button>
+        </div>
+
+        <div class="progress-stack">
+          <div class="progress-block">
+            <div class="progress-meta">
+              <span class="progress-label">This week</span>
+              <span class="progress-value" id="progress-weekly-text">0%</span>
+            </div>
+            <div
+              class="progress-bar"
+              id="progress-weekly"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            ></div>
+            <p class="progress-hint">
+              Daily rings (21) + weekly targets: 1× Ceremony, 4× weight, 2× cardio, 1× Hyrox-style, 1× Hyrox sim (9) = 30
+            </p>
+          </div>
+          <div class="progress-block">
+            <div class="progress-meta">
+              <span class="progress-label">Road to Hyrox</span>
+              <span class="progress-value" id="progress-campaign-text">0%</span>
+            </div>
+            <div
+              class="progress-bar progress-bar--campaign"
+              id="progress-campaign"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            ></div>
+            <p class="progress-hint">
+              All scheduled tasks from your tracking start through race week, vs completed so far.
+            </p>
+          </div>
+        </div>
+
+        <div class="day-grid" id="week-tracker"></div>
+      </section>
+
+      <footer class="foot">
+        <p>
+          Countdown to 7:00 AM <abbr title="Australian Eastern Standard Time">AEST</abbr> on 3 July 2026
+          (Sydney local time).
+        </p>
+      </footer>
+    </main>
+
+    <div
+      id="timeline-modal"
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="timeline-title"
+      hidden
+    >
+      <div class="modal__backdrop" data-close-timeline tabindex="-1"></div>
+      <div class="modal__panel">
+        <button type="button" class="modal__close" data-close-timeline aria-label="Close timeline">×</button>
+        <h2 id="timeline-title" class="modal__title">Road to Hyrox</h2>
+        <p class="modal__summary" id="timeline-summary"></p>
+        <div class="timeline-scroll" id="timeline-weeks" aria-label="Weeks until the event"></div>
+        <section class="timeline-charts" aria-labelledby="charts-heading">
+          <h3 id="charts-heading" class="timeline-charts__title">Cardio progression (weekly)</h3>
+          <div class="cardio-type-picker">
+            <label for="cardio-type-select" class="cardio-type-picker__label">Cardio type</label>
+            <select id="cardio-type-select" class="cardio-type-picker__select" aria-describedby="charts-hint">
+              <option value="treadmill">Treadmill</option>
+              <option value="outdoor">Outdoor run</option>
+              <option value="ski-erg">Ski-erg</option>
+              <option value="rower">Rower</option>
+            </select>
+          </div>
+          <p class="timeline-charts__hint" id="charts-hint">
+            Weekly totals for the selected cardio type only (completed sessions with that type). Pace = time ÷ distance when both are set.
+          </p>
+          <div class="chart-wrap">
+            <span class="chart-wrap__label">Distance (km)</span>
+            <canvas id="chart-distance"></canvas>
+          </div>
+          <div class="chart-wrap">
+            <span class="chart-wrap__label">Time (minutes)</span>
+            <canvas id="chart-time"></canvas>
+          </div>
+          <div class="chart-wrap">
+            <span class="chart-wrap__label">Average pace (min/km)</span>
+            <canvas id="chart-pace"></canvas>
+          </div>
+          <p class="timeline-charts__empty hidden" id="timeline-charts-empty">
+            No data for this cardio type yet. Log a completed cardio session and choose the matching type.
+          </p>
+        </section>
+      </div>
+    </div>
+
+    <script src="db.js" defer></script>
+    <script src="tracker.js" defer></script>
+    <script src="app.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <script src="timeline.js" defer></script>
+  </body>
+</html>
