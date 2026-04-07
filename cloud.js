@@ -174,6 +174,7 @@ async function hyroxInitAuthUi() {
   const btnIn = document.getElementById("btn-sign-in");
   const btnOut = document.getElementById("btn-sign-out");
   const status = document.getElementById("auth-status");
+  const debug = typeof window !== "undefined" && window.location.search && window.location.search.indexOf("hyrox_auth_debug=1") >= 0;
 
   function refresh() {
     const u = hyroxAuth && hyroxAuth.currentUser;
@@ -187,52 +188,40 @@ async function hyroxInitAuthUi() {
     if (btnOut) btnOut.classList.toggle("hidden", !u);
   }
 
-  /* Must complete before relying on currentUser after signInWithRedirect. */
-  try {
-    const result = await hyroxAuth.getRedirectResult();
-    if (result.user) {
-      console.log("[Hyrox] Redirect sign-in completed.");
-    }
-  } catch (e) {
-    console.error("[Hyrox] getRedirectResult failed", e);
-    if (status) {
-      status.textContent = hyroxFormatAuthError(e);
-      status.classList.remove("hidden");
-      status.dataset.redirectError = "1";
-    }
-  }
-
-  if (btnIn) {
-    btnIn.addEventListener("click", async () => {
-      if (status && status.dataset.redirectError === "1") {
-        status.dataset.redirectError = "";
-      }
-      const provider = new firebase.auth.GoogleAuthProvider();
-      try {
-        await hyroxAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-        if (hyroxUseAuthRedirect()) {
-          await hyroxAuth.signInWithRedirect(provider);
-          return;
+  function wireButtons() {
+    if (btnIn) {
+      btnIn.addEventListener("click", async () => {
+        if (status && status.dataset.redirectError === "1") {
+          status.dataset.redirectError = "";
         }
-        await hyroxAuth.signInWithPopup(provider);
-      } catch (e) {
-        console.error(e);
-        const code = e && e.code ? String(e.code) : "";
-        const msg = e && e.message ? String(e.message) : String(e);
-        let hint =
-          "If this is auth/unauthorized-domain: Firebase → Authentication → Settings → Authorized domains must include exactly: " +
-          (window.location.hostname || "this site");
-        hint +=
-          ". Also in Google Cloud Console → APIs & Services → Credentials → your Web client → Authorized JavaScript origins, add https://" +
-          (window.location.hostname || "yoursite.github.io");
-        alert(`Sign-in failed (${code || "error"})\n\n${msg}\n\n${hint}`);
-      }
-    });
-  }
-  if (btnOut) {
-    btnOut.addEventListener("click", () => hyroxAuth.signOut());
+        const provider = new firebase.auth.GoogleAuthProvider();
+        try {
+          await hyroxAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+          if (hyroxUseAuthRedirect()) {
+            await hyroxAuth.signInWithRedirect(provider);
+            return;
+          }
+          await hyroxAuth.signInWithPopup(provider);
+        } catch (e) {
+          console.error(e);
+          const code = e && e.code ? String(e.code) : "";
+          const msg = e && e.message ? String(e.message) : String(e);
+          let hint =
+            "If this is auth/unauthorized-domain: Firebase → Authentication → Settings → Authorized domains must include exactly: " +
+            (window.location.hostname || "this site");
+          hint +=
+            ". Also in Google Cloud Console → APIs & Services → Credentials → your Web client → Authorized JavaScript origins, add https://" +
+            (window.location.hostname || "yoursite.github.io");
+          alert(`Sign-in failed (${code || "error"})\n\n${msg}\n\n${hint}`);
+        }
+      });
+    }
+    if (btnOut) {
+      btnOut.addEventListener("click", () => hyroxAuth.signOut());
+    }
   }
 
+  /* Subscribe before getRedirectResult so we never miss the post-redirect user state. */
   hyroxAuth.onAuthStateChanged(async (user) => {
     if (user && status && status.dataset.redirectError === "1") {
       status.dataset.redirectError = "";
@@ -254,6 +243,51 @@ async function hyroxInitAuthUi() {
       window.dispatchEvent(new CustomEvent("hyrox-auth-changed"));
     }
   });
+
+  wireButtons();
+
+  try {
+    const result = await hyroxAuth.getRedirectResult();
+    if (debug) {
+      console.info("[Hyrox] getRedirectResult", {
+        hasCredential: !!(result && result.credential),
+        hasUser: !!(result && result.user),
+        currentUser: !!(hyroxAuth && hyroxAuth.currentUser),
+      });
+    }
+    if (result && result.user) {
+      console.log("[Hyrox] Redirect sign-in completed.");
+      if (status && status.dataset.redirectError === "1") {
+        status.dataset.redirectError = "";
+      }
+      try {
+        await hyroxFullMergeSync();
+      } catch (e) {
+        console.error("[Hyrox] Cloud sync right after redirect failed", e);
+        if (status) {
+          status.textContent = `Signed in, but sync failed: ${e.message || e}`;
+          status.classList.remove("hidden");
+        }
+      }
+      refresh();
+      window.dispatchEvent(new CustomEvent("hyrox-auth-changed"));
+    }
+  } catch (e) {
+    console.error("[Hyrox] getRedirectResult failed", e);
+    if (status) {
+      status.textContent = hyroxFormatAuthError(e);
+      status.classList.remove("hidden");
+      status.dataset.redirectError = "1";
+    }
+  }
+
+  if (typeof hyroxAuth.authStateReady === "function") {
+    try {
+      await hyroxAuth.authStateReady();
+    } catch (e) {
+      console.warn("[Hyrox] authStateReady", e);
+    }
+  }
 
   refresh();
 }
@@ -295,6 +329,12 @@ function hyroxInitFirebase() {
   hyroxInitAuthUi().catch((e) => console.error("[Hyrox] Auth UI init failed", e));
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+/* Init as soon as DOM is ready (defer scripts run before DOMContentLoaded). Starts auth before tracker’s first render. */
+function hyroxBootCloud() {
   hyroxInitFirebase();
-});
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", hyroxBootCloud);
+} else {
+  hyroxBootCloud();
+}
