@@ -1,0 +1,9 @@
+{
+  "name": "hyrox-app",
+  "private": true,
+  "scripts": {
+    "firebase": "firebase",
+    "deploy": "firebase deploy",
+    "deploy:hosting": "firebase deploy --only hosting"
+  }
+}

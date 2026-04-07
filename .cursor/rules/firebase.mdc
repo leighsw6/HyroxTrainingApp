@@ -1,0 +1,16 @@
+---
+description: Firebase Hosting deploy workflow for this repo
+alwaysApply: true
+---
+
+# Firebase (this project)
+
+- Static site is served from `public/`. Edit `public/index.html` or add assets there.
+- After `firebase login`, run `firebase use --add` once to create `.firebaserc` and pick your project (or set the default project in Firebase Console and link it here).
+- Install Firebase CLI globally (once): `npm install -g firebase-tools`. Do not rely on `node_modules` on Google Drive synced folders; installs there often fail.
+- If `firebase` is not found in a terminal, ensure Node’s `npm` global bin is on PATH (usually `%AppData%\npm`) or restart Cursor after installing Node.
+- Login once per machine: `firebase login` (opens browser).
+- Deploy: `npm run deploy` or `npm run deploy:hosting` (requires `firebase` on PATH).
+- Create a new Firebase project (CLI): `firebase projects:create PROJECT_ID` then `firebase use PROJECT_ID`.
+
+Do not commit Firebase CI tokens or service account JSON.

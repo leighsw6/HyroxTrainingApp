@@ -1,0 +1,45 @@
+HYROX APP — FIREBASE SETUP (new project)
+========================================
+
+1) CREATE PROJECT
+   - https://console.firebase.google.com → Add project → name it (e.g. hyrox-training).
+
+2) ENABLE GOOGLE SIGN-IN
+   - Build → Authentication → Sign-in method → Google → Enable → Save.
+
+3) CREATE A WEB APP & COPY CONFIG
+   - Project overview → "</>" (Web) → register app (nickname e.g. "Hyrox web").
+   - Copy the firebaseConfig object values into firebase-config.js (replace every REPLACE_* placeholder).
+
+4) AUTHORIZED DOMAINS (Authentication)
+   - Authentication → Settings → Authorized domains.
+   - Add:
+     - localhost (often already there)
+     - Your Firebase Hosting domain: <project-id>.web.app and <project-id>.firebaseapp.com
+     - Any custom domain you add later under Hosting.
+
+5) FIRESTORE
+   - Build → Firestore Database → Create database.
+   - Start in production mode (we deploy rules from this repo).
+   - Location: choose a region close to you.
+
+6) LINK THIS FOLDER TO THE PROJECT (CLI)
+   - Install Node.js, then in this project folder:
+     npm install
+   - Login: npx firebase login
+   - Set project: npx firebase use --add   (pick your project; sets .firebaserc)
+   - Or edit .firebaserc and replace "your-firebase-project-id" with your real Project ID.
+
+7) DEPLOY RULES + HOSTING
+   npx firebase deploy
+
+   This publishes the static app and Firestore rules. Open the Hosting URL shown (https://<project-id>.web.app).
+
+8) OPTIONAL: GITHUB
+   - You can still push this repo to GitHub; live app for users is Firebase Hosting after deploy.
+   - Do not commit secrets beyond the public web API key (expected for client apps). Restrict API key in Google Cloud Console if you like (HTTP referrers).
+
+TROUBLESHOOTING
+- auth/unauthorized-domain: add the exact site host under Authorized domains.
+- Sign-in works locally but not deployed: add the .web.app domain to Authorized domains.
+- Rules errors: deploy firestore.rules again: npx firebase deploy --only firestore:rules
