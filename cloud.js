@@ -145,7 +145,12 @@ async function hyroxFullMergeSync() {
   window.dispatchEvent(new CustomEvent("hyrox-synced"));
 }
 
+/** Pop-up auth often fails on GitHub Pages; redirect is reliable there and on mobile. */
 function hyroxUseAuthRedirect() {
+  const host = window.location.hostname || "";
+  if (host.endsWith(".github.io") || host === "localhost" || host === "127.0.0.1") {
+    return true;
+  }
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent || ""
   );
@@ -183,9 +188,15 @@ function hyroxInitAuthUi() {
         await hyroxAuth.signInWithPopup(provider);
       } catch (e) {
         console.error(e);
-        alert(
-          "Sign-in failed. On phones use Safari/Chrome (not in-app browsers). In Firebase add this site under Authentication → Authorized domains."
-        );
+        const code = e && e.code ? String(e.code) : "";
+        const msg = e && e.message ? String(e.message) : String(e);
+        let hint =
+          "If this is auth/unauthorized-domain: Firebase → Authentication → Settings → Authorized domains must include exactly: " +
+          (window.location.hostname || "this site");
+        hint +=
+          ". Also in Google Cloud Console → APIs & Services → Credentials → your Web client → Authorized JavaScript origins, add https://" +
+          (window.location.hostname || "yoursite.github.io");
+        alert(`Sign-in failed (${code || "error"})\n\n${msg}\n\n${hint}`);
       }
     });
   }
