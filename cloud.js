@@ -155,21 +155,22 @@ async function hyroxFullMergeSync() {
   window.dispatchEvent(new CustomEvent("hyrox-synced"));
 }
 
-/** Redirect is reliable on GitHub Pages, Firebase Hosting default domains, localhost, and mobile. */
+/**
+ * Prefer redirect sign-in: popups are often blocked (especially on custom domains / strict browsers),
+ * which makes it look like nothing happened after clicking Google. Redirect works for any origin you
+ * add under Firebase → Authentication → Settings → Authorized domains.
+ */
 function hyroxUseAuthRedirect() {
-  const host = window.location.hostname || "";
-  if (
-    host.endsWith(".github.io") ||
-    host.endsWith(".web.app") ||
-    host.endsWith(".firebaseapp.com") ||
-    host === "localhost" ||
-    host === "127.0.0.1"
-  ) {
+  try {
+    const p = window.location.protocol || "";
+    if (p === "file:") {
+      return false;
+    }
+    /* http(s) and other non-file origins: full-page redirect is the most reliable path. */
+    return true;
+  } catch {
     return true;
   }
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent || ""
-  );
 }
 
 function hyroxFormatAuthError(e) {
