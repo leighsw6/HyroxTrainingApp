@@ -156,7 +156,21 @@ function hyroxUseAuthRedirect() {
   );
 }
 
-function hyroxInitAuthUi() {
+function hyroxFormatAuthError(e) {
+  const code = e && e.code ? String(e.code) : "";
+  const msg = e && e.message ? String(e.message) : String(e);
+  let hint = "";
+  if (code === "auth/unauthorized-domain") {
+    hint =
+      " Firebase → Authentication → Settings → Authorized domains must include: " +
+      (window.location.hostname || "this host");
+  } else if (code === "auth/operation-not-allowed") {
+    hint = " Enable Google under Firebase → Authentication → Sign-in method.";
+  }
+  return `${code ? `${code}: ` : ""}${msg}${hint}`;
+}
+
+async function hyroxInitAuthUi() {
   const btnIn = document.getElementById("btn-sign-in");
   const btnOut = document.getElementById("btn-sign-out");
   const status = document.getElementById("auth-status");
@@ -164,23 +178,38 @@ function hyroxInitAuthUi() {
   function refresh() {
     const u = hyroxAuth && hyroxAuth.currentUser;
     if (status) {
-      status.textContent = u ? `Signed in: ${u.email || u.uid.slice(0, 8)}…` : "";
-      status.classList.toggle("hidden", !u);
+      if (status.dataset.redirectError !== "1") {
+        status.textContent = u ? `Signed in: ${u.email || u.uid.slice(0, 8)}…` : "";
+        status.classList.toggle("hidden", !u);
+      }
     }
     if (btnIn) btnIn.classList.toggle("hidden", !!u);
     if (btnOut) btnOut.classList.toggle("hidden", !u);
   }
 
-  /* Completes Google sign-in after signInWithRedirect (required on most phones). */
-  hyroxAuth
-    .getRedirectResult()
-    .then(() => {})
-    .catch((e) => console.warn("getRedirectResult", e));
+  /* Must complete before relying on currentUser after signInWithRedirect. */
+  try {
+    const result = await hyroxAuth.getRedirectResult();
+    if (result.user) {
+      console.log("[Hyrox] Redirect sign-in completed.");
+    }
+  } catch (e) {
+    console.error("[Hyrox] getRedirectResult failed", e);
+    if (status) {
+      status.textContent = hyroxFormatAuthError(e);
+      status.classList.remove("hidden");
+      status.dataset.redirectError = "1";
+    }
+  }
 
   if (btnIn) {
     btnIn.addEventListener("click", async () => {
+      if (status && status.dataset.redirectError === "1") {
+        status.dataset.redirectError = "";
+      }
       const provider = new firebase.auth.GoogleAuthProvider();
       try {
+        await hyroxAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
         if (hyroxUseAuthRedirect()) {
           await hyroxAuth.signInWithRedirect(provider);
           return;
@@ -205,13 +234,25 @@ function hyroxInitAuthUi() {
   }
 
   hyroxAuth.onAuthStateChanged(async (user) => {
-    refresh();
-    if (user) {
-      await hyroxFullMergeSync();
-    } else {
-      remoteWeekMem.clear();
+    if (user && status && status.dataset.redirectError === "1") {
+      status.dataset.redirectError = "";
     }
-    window.dispatchEvent(new CustomEvent("hyrox-auth-changed"));
+    refresh();
+    try {
+      if (user) {
+        await hyroxFullMergeSync();
+      } else {
+        remoteWeekMem.clear();
+      }
+    } catch (e) {
+      console.error("[Hyrox] Cloud sync after auth failed", e);
+      if (status && user) {
+        status.textContent = `Signed in, but sync failed: ${e.message || e}`;
+        status.classList.remove("hidden");
+      }
+    } finally {
+      window.dispatchEvent(new CustomEvent("hyrox-auth-changed"));
+    }
   });
 
   refresh();
@@ -233,7 +274,9 @@ function hyroxInitFirebase() {
     return;
   }
   try {
-    firebase.initializeApp(cfg);
+    if (!firebase.apps.length) {
+      firebase.initializeApp(cfg);
+    }
     hyroxAuth = firebase.auth();
     hyroxDb = firebase.firestore();
   } catch (e) {
@@ -249,7 +292,7 @@ function hyroxInitFirebase() {
   if (bar) {
     bar.classList.remove("hidden", "auth-bar--pending");
   }
-  hyroxInitAuthUi();
+  hyroxInitAuthUi().catch((e) => console.error("[Hyrox] Auth UI init failed", e));
 }
 
 document.addEventListener("DOMContentLoaded", () => {
