@@ -203,3 +203,57 @@ function weekKeysBetweenInclusive(startMondayIso, endMondayIso) {
   }
   return keys;
 }
+
+const HYROX_EXPORT_FORMAT = "hyrox-training-export";
+
+function normalizeImportedDay(d) {
+  const def = defaultDay();
+  const r = (d && d.rings) || def.rings;
+  return {
+    rings: [!!r[0], !!r[1], !!r[2]],
+    workoutType: d && d.workoutType ? String(d.workoutType) : "",
+    workoutDone: !!(d && d.workoutDone),
+    cardioSubtype: d && d.cardioSubtype ? String(d.cardioSubtype) : "",
+    cardioDistance: d && d.cardioDistance != null ? String(d.cardioDistance) : "",
+    cardioTime: d && d.cardioTime != null ? String(d.cardioTime) : "",
+    cardioPace: d && d.cardioPace != null ? String(d.cardioPace) : "",
+  };
+}
+
+async function hyroxExportSnapshot() {
+  const weeks = await idbGetAllWeeks();
+  return {
+    format: HYROX_EXPORT_FORMAT,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    trackingStartWeek: localStorage.getItem("hyrox_tracking_start_week"),
+    weeks: weeks.slice().sort((a, b) => a.weekKey.localeCompare(b.weekKey)),
+  };
+}
+
+async function hyroxImportSnapshot(data) {
+  if (!data || typeof data !== "object") {
+    throw new Error("Invalid file");
+  }
+  if (data.format !== HYROX_EXPORT_FORMAT) {
+    throw new Error('Not a Hyrox export (missing format "hyrox-training-export")');
+  }
+  if (!Array.isArray(data.weeks)) {
+    throw new Error("Invalid export: missing weeks array");
+  }
+  if (data.trackingStartWeek && typeof data.trackingStartWeek === "string") {
+    localStorage.setItem("hyrox_tracking_start_week", data.trackingStartWeek);
+  }
+  for (const w of data.weeks) {
+    if (!w || typeof w.weekKey !== "string" || !w.days || typeof w.days !== "object") {
+      continue;
+    }
+    const base = await getWeekOrDefault(w.weekKey);
+    for (const k of iterWeekDayKeys(w.weekKey)) {
+      if (Object.prototype.hasOwnProperty.call(w.days, k)) {
+        base.days[k] = normalizeImportedDay(w.days[k]);
+      }
+    }
+    await idbPutWeek(base);
+  }
+}

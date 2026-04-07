@@ -425,6 +425,25 @@ function closeTimeline() {
   document.getElementById("btn-timeline")?.focus();
 }
 
+window.addEventListener("hyrox-imported", () => {
+  cachedCardioBySubtype = null;
+  if (!timelineOpen) return;
+  updateSummary();
+  const weeksEl = document.getElementById("timeline-weeks");
+  if (weeksEl) weeksEl.innerHTML = buildTimelineWeeksHtml();
+  aggregateCardioBySubtypeAndWeek().then((bySubtype) => {
+    cachedCardioBySubtype = bySubtype;
+    const select = document.getElementById("cardio-type-select");
+    const preferred = select?.value || CARDIO_SUBTYPES[0].value;
+    const hasPreferred =
+      bySubtype[preferred] &&
+      bySubtype[preferred].some((row) => row.distanceKm > 0 || row.timeMin > 0);
+    const subtype = hasPreferred ? preferred : firstSubtypeWithData(bySubtype);
+    if (select) select.value = subtype;
+    renderCharts(bySubtype[subtype] || [], subtype);
+  });
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-timeline")?.addEventListener("click", openTimeline);
 

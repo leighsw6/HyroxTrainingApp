@@ -359,10 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindWeekRoot();
   bindNav();
   renderWeek().catch((err) => console.error("[Hyrox] renderWeek", err));
-  window.addEventListener("hyrox-synced", () => {
-    renderWeek().catch((err) => console.error("[Hyrox] renderWeek", err));
-  });
-  window.addEventListener("hyrox-auth-changed", () => {
+  window.addEventListener("hyrox-imported", () => {
     renderWeek().catch((err) => console.error("[Hyrox] renderWeek", err));
   });
 });

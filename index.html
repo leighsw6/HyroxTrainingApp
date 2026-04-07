@@ -72,6 +72,12 @@
           <p class="week-range" id="week-range-label">—</p>
           <button type="button" class="btn-week" id="week-next" aria-label="Next week">→</button>
         </div>
+        <div class="persist-toolbar" role="group" aria-label="Save and load training data">
+          <button type="button" class="btn-persist" id="btn-save-json">Save to file</button>
+          <button type="button" class="btn-persist btn-persist--ghost" id="btn-save-md">Save as Markdown</button>
+          <input type="file" id="hyrox-file-import" accept=".json,.md,text/plain,text/markdown,application/json" hidden />
+          <button type="button" class="btn-persist btn-persist--ghost" id="btn-load-file">Load from file</button>
+        </div>
 
         <div class="progress-stack">
           <div class="progress-block">
@@ -114,20 +120,12 @@
       </section>
 
       <footer class="foot">
-        <div class="auth-bar auth-bar--pending hidden" id="auth-bar">
-          <button type="button" class="btn-auth" id="btn-sign-in">Sign in with Google</button>
-          <span class="auth-status hidden" id="auth-status" aria-live="polite"></span>
-          <button type="button" class="btn-auth btn-auth--ghost hidden" id="btn-sign-out">Sign out</button>
-        </div>
         <p>
           Countdown to 7:00 AM <abbr title="Australian Eastern Standard Time">AEST</abbr> on 3 July 2026
           (Sydney local time).
         </p>
         <p class="foot__sync-hint">
-          Sign in with the <strong>same Google account</strong> on each device. Until you sign in, checkboxes only save in this browser.
-        </p>
-        <p id="firebase-config-missing" class="foot__sync-hint foot__sync-hint--warn hidden">
-          Cloud sync is off: set <code>HYROX_FIREBASE_CONFIG</code> in <code>firebase-config.js</code>, push to GitHub, then sign in on each device.
+          Data is stored in this browser. Use <strong>Save to file</strong> to download a backup, commit it in this repo if you like, then use <strong>Load from file</strong> on another device.
         </p>
         <p id="storage-warning" class="foot__sync-hint foot__sync-hint--warn hidden">
           Browser blocked local storage (IndexedDB). Open the site via <strong>http://localhost</strong> or your GitHub Pages URL so daily tasks can save. Embedded <code>file://</code> previews often block storage.
@@ -177,11 +175,7 @@
     </div>
 
     <script src="db.js" defer></script>
-    <script src="firebase-config.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js" defer></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" defer></script>
-    <script src="cloud.js" defer></script>
+    <script src="persist.js" defer></script>
     <script src="tracker.js" defer></script>
     <script src="app.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
